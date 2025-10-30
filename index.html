@@ -1,0 +1,245 @@
+<!doctype html>
+<!-- Full Calculator: single-file HTML + CSS + JS
+     Features:
+     - Standard + basic scientific functions (sin, cos, tan, log, ln, sqrt, ^)
+     - Keyboard support
+     - Clear (C), All Clear (AC), Backspace
+     - Memory (M+, M-, MR, MC)
+     - Responsive layout
+     How to use: save as calculator.html and open in a browser.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Calculator — Single File</title>
+  <style>
+    :root{--bg:#0f1724;--panel:#111827;--accent:#06b6d4;--btn:#1f2937;--text:#e6eef8}
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family:Inter,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:linear-gradient(180deg,#071023 0%, #081225 100%);color:var(--text)}
+    .wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+    .calc{width:360px;max-width:96vw;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));border-radius:14px;padding:16px;box-shadow:0 8px 30px rgba(2,6,23,0.7)}
+    .display{background:transparent;padding:12px;border-radius:10px;margin-bottom:12px;min-height:78px;display:flex;flex-direction:column;justify-content:center}
+    .expr{font-size:14px;opacity:0.7;min-height:18px;word-break:break-all}
+    .out{font-size:28px;font-weight:600;word-break:break-all}
+    .grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+    button{appearance:none;border:0;padding:12px;border-radius:8px;background:var(--btn);color:var(--text);font-size:15px;cursor:pointer;box-shadow:inset 0 -2px 0 rgba(0,0,0,0.2)}
+    button.op{background:transparent;border:1px solid rgba(255,255,255,0.04)}
+    button.accent{background:linear-gradient(180deg,var(--accent),#0891b2);color:#022;box-shadow:0 6px 18px rgba(6,182,212,0.12)}
+    button.wide{grid-column:span 2}
+    .small{font-size:13px;padding:10px}
+    .meta{display:flex;gap:8px;justify-content:space-between;margin-bottom:8px}
+    .meta .left{display:flex;gap:8px}
+    .hint{opacity:0.6;font-size:12px}
+    @media (max-width:420px){.grid{grid-template-columns:repeat(4,1fr)}.calc{width:100%}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="calc" role="application" aria-label="Calculator">
+      <div class="meta">
+        <div class="left">
+          <div class="hint">Basic & Scientific</div>
+        </div>
+        <div class="hint">Keyboard supported (0-9 . + - * / Enter Backspace)</div>
+      </div>
+
+      <div class="display" id="display">
+        <div class="expr" id="expression">0</div>
+        <div class="out" id="output">0</div>
+      </div>
+
+      <div class="grid" id="buttons">
+        <!-- Row 1 -->
+        <button class="small" data-act="mc">MC</button>
+        <button class="small" data-act="mr">MR</button>
+        <button class="small" data-act="mplus">M+</button>
+        <button class="small" data-act="mminus">M-</button>
+        <button class="small" data-act="back">⌫</button>
+        <button class="small" data-act="ac">AC</button>
+
+        <!-- Row 2 -->
+        <button data-val="sin(">sin</button>
+        <button data-val="cos(">cos</button>
+        <button data-val="tan(">tan</button>
+        <button data-val="log10(">log</button>
+        <button data-val="ln(">ln</button>
+        <button data-act="sqrt">√</button>
+
+        <!-- Row 3 -->
+        <button data-val="(">(</button>
+        <button data-val=")">)</button>
+        <button data-val="^">^</button>
+        <button data-val="%">%</button>
+        <button data-val="pi">π</button>
+        <button data-act="toggle-sign">±</button>
+
+        <!-- Row 4 -->
+        <button data-val="7">7</button>
+        <button data-val="8">8</button>
+        <button data-val="9">9</button>
+        <button class="op" data-val="/">÷</button>
+        <button class="op" data-val="*">×</button>
+        <button class="op" data-val="-">−</button>
+
+        <!-- Row 5 -->
+        <button data-val="4">4</button>
+        <button data-val="5">5</button>
+        <button data-val="6">6</button>
+        <button data-val="+" class="op">+</button>
+        <button data-act="ans">ANS</button>
+        <button data-act="sqrt-2">x²</button>
+
+        <!-- Row 6 -->
+        <button data-val="1">1</button>
+        <button data-val="2">2</button>
+        <button data-val="3">3</button>
+        <button data-val="0" class="wide">0</button>
+        <button data-val=".">.</button>
+        <button data-act="equals" class="accent">=</button>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function(){
+      const exprEl = document.getElementById('expression')
+      const outEl = document.getElementById('output')
+      const buttons = document.getElementById('buttons')
+
+      let expr = ''
+      let lastAns = 0
+      let memory = 0
+
+      function render(){
+        exprEl.textContent = expr || '0'
+        outEl.textContent = evaluatePreview(expr)
+      }
+
+      function safeEval(src){
+        // Replace ^ with ** for exponentiation and percent handling
+        if(!src) return 0
+        try{
+          let s = src.replace(/\^/g,'**')
+          // Replace 'pi' with Math.PI token
+          s = s.replace(/pi/g,'Math.PI')
+
+          // Replace functions with Math equivalents
+          s = s.replace(/\bsin\(/g,'Math.sin(')
+          s = s.replace(/\bcos\(/g,'Math.cos(')
+          s = s.replace(/\btan\(/g,'Math.tan(')
+          s = s.replace(/\blog10\(/g,'Math.log10?Math.log10:Math.log(') // fallback handled later
+          s = s.replace(/\bln\(/g,'Math.log(')
+          s = s.replace(/\bsqrt\(/g,'Math.sqrt(')
+
+          // Provide Math.log10 fallback if not available
+          if(typeof Math.log10 !== 'function'){
+            s = s.replace('Math.log10(','(Math.log(')
+            // for base-10 emulate: log10(x) = Math.log(x)/Math.LN10
+            s = s.replace(/Math\.log\(/g,'(Math.log(')
+          }
+
+          // handle percent: convert a%b to (a*0.01*b?) - simpler: treat % as /100 when trailing a number
+          s = s.replace(/(\d+(?:\.\d+)?)%/g,'($1/100)')
+
+          // Evaluate safely using Function. We only allow Math and numbers and operators.
+          // Restrict unwanted characters (letters allowed only in Math and function names above)
+          if(/[^0-9+\-*/().,%\sMathPIAENxetilgscnrobq]+/i.test(s)){
+            // if suspicious, throw
+            throw new Error('Invalid characters')
+          }
+
+          // Provide Math.log10 if needed
+          if(!Math.log10){
+            // create a temporary function evaluating with Math.log10 emulated
+            return Function('Math','with(Math){return '+s+'}')({
+              ...Math,
+              log10: function(x){return Math.log(x)/Math.LN10}
+            })
+          }
+
+          return Function('Math','with(Math){return '+s+'}')(Math)
+        }catch(e){
+          return 'ERR'
+        }
+      }
+
+      function evaluatePreview(str){
+        if(!str) return '0'
+        const v = safeEval(str)
+        if(v === 'ERR') return 'ERR'
+        // trim long floats
+        if(typeof v === 'number'){
+          if(!isFinite(v)) return 'ERR'
+          return Number.isInteger(v) ? v.toString() : parseFloat(v.toFixed(10)).toString()
+        }
+        return v
+      }
+
+      buttons.addEventListener('click', e=>{
+        const btn = e.target.closest('button')
+        if(!btn) return
+        const v = btn.dataset.val
+        const act = btn.dataset.act
+        if(v !== undefined){
+          // append value
+          expr += v
+          render()
+          return
+        }
+        if(act){
+          handleAction(act)
+          render()
+        }
+      })
+
+      function handleAction(act){
+        if(act === 'ac') { expr=''; lastAns=0; outEl.textContent='0'; return }
+        if(act === 'back') { expr = expr.slice(0,-1); return }
+        if(act === 'equals'){
+          const res = evaluatePreview(expr)
+          if(res === 'ERR') { outEl.textContent='ERR'; return }
+          lastAns = Number(res)
+          expr = String(res)
+          return
+        }
+        if(act === 'ans') { expr += String(lastAns); return }
+        if(act === 'toggle-sign'){
+          // try to toggle sign of last number
+          expr = expr.replace(/(\d+\.?\d*)$/,'-$1')
+          return
+        }
+        if(act === 'sqrt-2'){
+          expr += '**2'
+          return
+        }
+        if(act === 'sqrt') { expr += 'sqrt('; return }
+        if(act === 'mplus'){ memory += Number(evaluatePreview(expr)); return }
+        if(act === 'mminus'){ memory -= Number(evaluatePreview(expr)); return }
+        if(act === 'mr'){ expr += String(memory); return }
+        if(act === 'mc'){ memory = 0; return }
+      }
+
+      // keyboard support
+      window.addEventListener('keydown', e=>{
+        const k = e.key
+        if((/^[0-9]$/.test(k)) || k === '.') { expr += k; render(); e.preventDefault(); return }
+        if(k === 'Enter') { handleAction('equals'); render(); e.preventDefault(); return }
+        if(k === 'Backspace') { handleAction('back'); render(); e.preventDefault(); return }
+        if(k === 'Escape') { handleAction('ac'); render(); e.preventDefault(); return }
+        if(k === '+') { expr += '+'; render(); e.preventDefault(); return }
+        if(k === '-') { expr += '-'; render(); e.preventDefault(); return }
+        if(k === '*') { expr += '*'; render(); e.preventDefault(); return }
+        if(k === '/') { expr += '/'; render(); e.preventDefault(); return }
+        if(k === '^') { expr += '^'; render(); e.preventDefault(); return }
+        if(k === '%') { expr += '%'; render(); e.preventDefault(); return }
+        if(k === '(' || k === ')'){ expr += k; render(); e.preventDefault(); return }
+      })
+
+      // initial render
+      render()
+    })()
+  </script>
+</body>
+</html>
